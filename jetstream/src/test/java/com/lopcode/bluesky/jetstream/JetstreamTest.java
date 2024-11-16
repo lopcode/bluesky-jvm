@@ -1,4 +1,4 @@
-package com.lopcode.bluesky.sample;
+package com.lopcode.bluesky.jetstream;
 
 import org.junit.jupiter.api.Test;
 
