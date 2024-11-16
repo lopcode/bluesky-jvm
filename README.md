@@ -20,7 +20,7 @@ Sample projects used to validate all the tools included in this repository.
 
 Currently connects to Jetstream (specifying zstd compression), logs ~100k events, then exits.
 
-Run with `./gradlew sample:run`:
+Run with `./run_sample.sh`:
 ```
 > Task :sample:run
 [main] INFO SampleRunner - hello, bluesky
