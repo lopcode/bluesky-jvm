@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 set -eou pipefail
 
-./gradlew build shadowJar
+./gradlew build shadowJar -x check
 
-java -jar sample/build/libs/sample-all.jar -Xms4096m -Xmx4096m
+java -jar sample/build/libs/sample-all.jar -Xms1024m -Xmx1024m
