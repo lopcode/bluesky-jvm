@@ -14,7 +14,11 @@ repositories {
     mavenCentral()
 }
 
-dependencies {}
+dependencies {
+    implementation(platform("org.slf4j:slf4j-bom:2.0.16"))
+    implementation("org.slf4j:slf4j-api")
+    implementation("com.github.luben:zstd-jni:1.5.6-7")
+}
 
 java {
     toolchain {

@@ -48,4 +48,5 @@ tasks.withType<JavaExec>().configureEach {
 
 application {
     mainClass = "com.lopcode.bluesky.sample.SampleRunner"
+    applicationDefaultJvmArgs = listOf("-Xmx4096m")
 }
