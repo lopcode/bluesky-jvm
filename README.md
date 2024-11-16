@@ -20,13 +20,17 @@ Sample projects used to validate all the tools included in this repository.
 
 Currently connects to Jetstream (specifying zstd compression), logs ~100k events, then exits.
 
-Run with `./run_sample.sh`:
+Run with `./run_sample.sh`, example output:
 ```
-> Task :sample:run
+BUILD SUCCESSFUL in 456ms
+15 actionable tasks: 15 up-to-date
 [main] INFO SampleRunner - hello, bluesky
 [ForkJoinPool.commonPool-worker-1] INFO Jetstream - websocket opened
 [HttpClient-1-Worker-0] INFO Jetstream - 0: {"did":"did:plc:<snip>","time_us":1731721018504021,"kind":"commit","commit":{"rev":"<snip>","operation":"create","collection":"app.bsky.graph.follow","rkey":"<snip>","record":{"$type":"app.bsky.graph.follow","createdAt":"2024-11-16T01:36:59.733Z","subject":"did:plc:<snip>"},"cid":"<snip>"}}
 [HttpClient-1-Worker-0] INFO Jetstream - 1: {"did":"did:plc:<snip>","time_us":1731721018505220,"kind":"commit","commit":{"rev":"<snip>","operation":"create","collection":"app.bsky.feed.like","rkey":"<snip>","record":{"$type":"app.bsky.feed.like","createdAt":"2024-11-16T01:36:58.257Z","subject":{"cid":"<snip>","uri":"at://did:plc:<snip>/app.bsky.feed.post/<snip>"}},"cid":"<snip>"}}
+...
+[] INFO Jetstream - exiting after 100000 messages consumed
+[] INFO Jetstream - throughput: 1799.982142857143/s
 ```
 
 ## Contributing

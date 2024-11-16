@@ -10,39 +10,52 @@ import java.net.http.HttpClient;
 import java.net.http.WebSocket;
 import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
+import java.time.Clock;
+import java.time.Duration;
+import java.time.Instant;
 import java.util.Objects;
 import java.util.concurrent.CompletionStage;
+import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicInteger;
 
 public class Jetstream {
 
     private final Logger logger = LoggerFactory.getLogger(Jetstream.class);
+    private final int maxWebsocketFrameBufferSizeBytes = 16 * 1024 * 1000;
+    private final ByteBuffer frameBuffer = ByteBuffer.allocateDirect(maxWebsocketFrameBufferSizeBytes);
+    private final ByteBuffer decompressBuffer = ByteBuffer.allocateDirect(maxWebsocketFrameBufferSizeBytes);
+    private Instant connectedAt;
 
     public void start() throws IOException {
         var decompressDict = loadJetstreamZstdDictionary();
+        var decompressContext = new ZstdDecompressCtx();
+        decompressContext.loadDict(decompressDict);
 
         var counter = new AtomicInteger(0);
         var threshold = 100_000;
+
+        var latch = new CountDownLatch(threshold);
         Thread.startVirtualThread(() -> {
-            while (true) {
-                if (counter.get() >= threshold) {
-                    logger.info("exiting after {} messages consumed", threshold);
-                    System.exit(0);
-                }
-                try {
-                    Thread.sleep(1000);
-                } catch (InterruptedException e) {
-                    throw new RuntimeException(e);
-                }
+            try {
+                latch.await();
+            } catch (InterruptedException e) {
+                return;
             }
+            logger.info("exiting after {} messages consumed", threshold);
+            var endedAt = Instant.now(Clock.systemUTC());
+            var duration = Duration.between(connectedAt, endedAt);
+            var throughput = ((double) threshold / duration.toMillis()) * 1000;
+            logger.info("throughput: {}/s", throughput);
+            System.exit(0);
         });
 
-        try (var client = HttpClient.newHttpClient()) {
+        try (var client = HttpClient.newBuilder().build()) {
             client.newWebSocketBuilder()
-                .buildAsync(URI.create("wss://jetstream2.us-east.bsky.network/subscribe?compress=true"), new WebSocket.Listener() {
+                .buildAsync(URI.create("wss://jetstream2.us-east.bsky.network/subscribe?compress=true&maxMessageSizeBytes=" + maxWebsocketFrameBufferSizeBytes), new WebSocket.Listener() {
                     @Override
                     public void onOpen(WebSocket webSocket) {
                         logger.info("websocket opened");
+                        connectedAt = Instant.now(Clock.systemUTC());
                         WebSocket.Listener.super.onOpen(webSocket);
                     }
 
@@ -78,12 +91,22 @@ public class Jetstream {
 
                     @Override
                     public CompletionStage<?> onBinary(WebSocket webSocket, ByteBuffer data, boolean last) {
-                        try (var stream = new ZstdBufferDecompressingStream(data).setDict(decompressDict)) {
-                            logDecompressedMessage(counter.getAndIncrement(), stream);
+                        if (latch.getCount() <= 0) {
                             return WebSocket.Listener.super.onBinary(webSocket, data, last);
-                        } catch (IOException exception) {
-                            throw new RuntimeException(exception);
                         }
+                        frameBuffer.put(data);
+                        if (!last) {
+                            logger.info("buffered frame");
+                            return WebSocket.Listener.super.onBinary(webSocket, data, last);
+                        }
+                        frameBuffer.flip();
+                        try {
+                            logDecompressedMessage(counter.getAndIncrement(), decompressContext);
+                            latch.countDown();
+                        } finally {
+                            frameBuffer.clear();
+                        }
+                        return WebSocket.Listener.super.onBinary(webSocket, data, last);
                     }
                 }).join();
         }
@@ -100,25 +123,26 @@ public class Jetstream {
         return new ZstdDictDecompress(bytes);
     }
 
-    void logDecompressedMessage(int count, ZstdBufferDecompressingStream stream) {
-        var stringBuilder = new StringBuilder();
-        var decompressBuffer = ByteBuffer.allocate(4096);
-        while (stream.hasRemaining()) {
-            try {
-                decompressBuffer.clear();
-                var readCount = stream.read(decompressBuffer);
-                if (readCount <= 0) {
-                    return;
-                }
-            } catch (ZstdIOException e) {
-                logger.error("zstd exception with code {}", e.getErrorCode(), e);
-            } catch (IOException e) {
-                throw new RuntimeException(e);
+    void logDecompressedMessage(
+        int messageId,
+        ZstdDecompressCtx context
+    ) {
+        try {
+            var readCount = context.decompress(decompressBuffer, frameBuffer);
+            if (readCount <= 0) {
+                return;
             }
-            decompressBuffer.flip();
-            stringBuilder.append(StandardCharsets.UTF_8.decode(decompressBuffer));
+        } catch (ZstdException e) {
+            logger.error("zstd exception with code {}", e.getErrorCode());
+            throw new RuntimeException(e);
         }
-        var text = stringBuilder.toString();
-        logger.info("{}: {}", count, text);
+        decompressBuffer.flip();
+        String text;
+        try {
+            text = StandardCharsets.UTF_8.decode(decompressBuffer).toString();
+        } finally {
+            decompressBuffer.clear();
+        }
+        logger.info("{}: {}", messageId, text);
     }
 }
