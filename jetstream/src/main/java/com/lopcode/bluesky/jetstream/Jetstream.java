@@ -1,10 +1,17 @@
 package com.lopcode.bluesky.jetstream;
 
-import com.github.luben.zstd.*;
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.DeserializationFeature;
+import com.fasterxml.jackson.databind.json.JsonMapper;
+import com.fasterxml.jackson.module.blackbird.BlackbirdModule;
+import com.github.luben.zstd.ZstdDecompressCtx;
+import com.github.luben.zstd.ZstdDictDecompress;
+import com.github.luben.zstd.ZstdException;
+import com.lopcode.bluesky.jetstream.model.JetstreamEvent;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.io.*;
+import java.io.IOException;
 import java.net.URI;
 import java.net.http.HttpClient;
 import java.net.http.WebSocket;
@@ -24,6 +31,11 @@ public class Jetstream {
     private final int maxWebsocketFrameBufferSizeBytes = 16 * 1024 * 1000;
     private final ByteBuffer frameBuffer = ByteBuffer.allocateDirect(maxWebsocketFrameBufferSizeBytes);
     private final ByteBuffer decompressBuffer = ByteBuffer.allocateDirect(maxWebsocketFrameBufferSizeBytes);
+    private final JsonMapper jsonMapper = JsonMapper.builder()
+        .addModule(new BlackbirdModule())
+        .disable(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES)
+        .build();
+
     private Instant connectedAt;
 
     public void start() throws IOException {
@@ -143,6 +155,12 @@ public class Jetstream {
         } finally {
             decompressBuffer.clear();
         }
-        logger.info("{}: {}", messageId, text);
+        JetstreamEvent event;
+        try {
+            event = jsonMapper.readValue(text, JetstreamEvent.class);
+        } catch (JsonProcessingException e) {
+            throw new RuntimeException(e);
+        }
+        logger.info("{}: {}", messageId, event);
     }
 }
