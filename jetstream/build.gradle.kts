@@ -18,7 +18,7 @@ dependencies {
     implementation(platform("org.slf4j:slf4j-bom:2.0.16"))
     implementation("org.slf4j:slf4j-api")
     implementation("com.github.luben:zstd-jni:1.5.6-7")
-    implementation(platform("com.fasterxml.jackson:jackson-bom:2.18.1"))
+    implementation(platform("com.fasterxml.jackson:jackson-bom:2.18.2"))
     implementation("com.fasterxml.jackson.core:jackson-core")
     implementation("com.fasterxml.jackson.module:jackson-module-blackbird")
 }
